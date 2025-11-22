@@ -1,0 +1,412 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<title>Avion vs Boss (images + son)</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<style>
+  :root {
+    --bg: #0f1424;
+    --arena: #151b34;
+    --text: #eaf2ff;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; height: 100vh; display: grid; place-items: center;
+    background: radial-gradient(1000px at 70% -200px, #1a2040 0%, var(--bg) 60%);
+    color: var(--text); font-family: Inter, system-ui, Arial, sans-serif;
+  }
+  .hud {
+    width: min(900px, 92vw);
+    display: grid; grid-template-columns: 1fr; gap: 10px;
+  }
+  .topbar {
+    display: flex; gap: 12px; align-items: center; justify-content: space-between;
+  }
+  .stat { background: #101534; border: 1px solid #2a335f; padding: 8px 12px; border-radius: 10px; }
+  .game {
+    position: relative; width: min(900px, 92vw); height: 580px; border-radius: 14px;
+    background: linear-gradient(180deg, var(--arena), #101534);
+    border: 1px solid #2a335f; overflow: hidden;
+    box-shadow: 0 12px 32px rgba(0,0,0,.35), inset 0 1px 0 rgba(255,255,255,.05);
+    touch-action: none;
+  }
+  .grid {
+    position: absolute; inset: 0; opacity: .18; pointer-events: none;
+    background-image:
+      linear-gradient(#2a335f33 1px, transparent 1px),
+      linear-gradient(90deg, #2a335f33 1px, transparent 1px);
+    background-size: 28px 28px;
+  }
+  /* Joueur: image */
+  .player {
+    position: absolute; width: 48px; height: 48px; transform: translate(-50%, -50%);
+    filter: drop-shadow(0 6px 12px rgba(89,211,255,.3));
+    user-select: none; pointer-events: none;
+  }
+  /* Missile joueur */
+  .bullet {
+    position: absolute; width: 14px; height: 28px; transform: translate(-50%, -50%);
+    user-select: none; pointer-events: none;
+  }
+  /* Boss: image */
+  .boss {
+    position: absolute; top: 40px; width: 420px; height: 120px; transform: translateX(-50%);
+    user-select: none; pointer-events: none;
+    filter: drop-shadow(0 10px 24px rgba(255, 107, 107, .25));
+  }
+  /* Missile boss */
+  .boss-bullet {
+    position: absolute; width: 28px; height: 28px; transform: translate(-50%, -50%);
+    user-select: none; pointer-events: none;
+  }
+  .overlay {
+    position: absolute; inset: 0; display: grid; place-items: center;
+    backdrop-filter: blur(2px) brightness(.95); background: rgba(16,21,52,.28);
+    opacity: 0; pointer-events: none; transition: opacity .25s ease;
+  }
+  .overlay.show { opacity: 1; pointer-events: all; }
+  .card {
+    background: #12173a; border: 1px solid #2a335f; border-radius: 14px; padding: 18px 22px; text-align: center; width: min(420px, 80%);
+    box-shadow: 0 12px 32px rgba(0,0,0,.35), inset 0 1px 0 rgba(255,255,255,.06);
+  }
+  .title {
+    font-weight: 900; font-size: 26px; letter-spacing: .4px; margin-bottom: 8px;
+    background: linear-gradient(90deg, #6cf5ff, #ff59d6);
+    -webkit-background-clip: text; background-clip: text; color: transparent;
+  }
+  .hpbar {
+    height: 12px; background: #0f1434; border: 1px solid #2a335f; border-radius: 999px; overflow: hidden;
+  }
+  .hpbar > i { display: block; height: 100%; width: 100%; background: linear-gradient(90deg, #78ff78, #42e0ff); }
+  .controls { font-size: 13px; opacity: .85; }
+  .btn {
+    appearance: none; border: 1px solid #2a335f; border-radius: 10px; padding: 10px 12px; cursor: pointer;
+    background: linear-gradient(180deg, #2a335f 0%, #141a39 100%); color: var(--text); font-weight: 700;
+    transition: transform .08s ease, box-shadow .2s ease, border-color .2s ease;
+    margin-top: 10px;
+  }
+  .btn:hover { transform: translateY(-1px); border-color: #6cf5ff; box-shadow: 0 10px 24px rgba(108,245,255,.22); }
+  /* Boutons mobiles */
+  .mobile-controls {
+    display: none;
+    gap: 10px; justify-content: center; margin-top: 8px;
+  }
+  .mobile-btn {
+    font-size: 18px; padding: 12px 18px;
+  }
+  @media (max-width: 700px) {
+    .mobile-controls { display: flex; }
+  }
+</style>
+</head>
+<body>
+  <div class="hud">
+    <div class="topbar">
+      <div class="stat"><b>Score:</b> <span id="score">0</span></div>
+      <div class="stat" style="flex:1; margin:0 8px;">
+        <b>Vie du boss</b>
+        <div class="hpbar"><i id="bossHpBar" style="width:100%"></i></div>
+      </div>
+      <div class="stat"><b>Vies:</b> <span id="hp">3</span></div>
+    </div>
+
+    <div class="game" id="game">
+      <div class="grid"></div>
+
+      <!-- Boss -->
+      <img id="boss" class="boss"
+           src="assets/image/boss.PNG"
+           alt="Boss"/>
+
+      <!-- Joueur -->
+      <img id="player" class="player"
+           src="assets/image/vaisseaux.png"
+           alt="Vaisseau"/>
+
+      <div class="overlay" id="overlay">
+        <div class="card">
+          <div class="title" id="resultTitle">Boss vaincu !</div>
+          <div id="summary">Score 0 • Vies 3</div>
+          <button class="btn" id="retry">Rejouer</button>
+          <div class="controls">PC: Flèches ou A/D pour bouger. Mobile: glisse le doigt dans la zone. Tir auto toutes 0.5 s.</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="mobile-controls">
+      <button class="btn mobile-btn" id="leftBtn">◀︎ Gauche</button>
+      <button class="btn mobile-btn" id="rightBtn">Droite ▶︎</button>
+    </div>
+  </div>
+
+<script>
+(() => {
+  const game = document.getElementById('game');
+  const playerEl = document.getElementById('player');
+  const bossEl = document.getElementById('boss');
+  const scoreEl = document.getElementById('score');
+  const hpEl = document.getElementById('hp');
+  const bossHpBar = document.getElementById('bossHpBar');
+  const overlay = document.getElementById('overlay');
+  const resultTitle = document.getElementById('resultTitle');
+  const summary = document.getElementById('summary');
+  const retryBtn = document.getElementById('retry');
+  const leftBtn = document.getElementById('leftBtn');
+  const rightBtn = document.getElementById('rightBtn');
+
+  // Audio tir
+ const shootSound = new Audio('assets/sounds/bruittire.mp3');
+shootSound.volume = 0.6;
+
+
+  const bounds = game.getBoundingClientRect();
+  let width = bounds.width, height = bounds.height;
+
+  // Joueur
+  let px = width/2, py = height - 80;
+  const speed = 5;
+  let hp = 3;
+  let score = 0;
+
+  // Boss
+  let bossHp = 100;
+  let bossX = width/2; // center position (boss is positioned via translateX(-50%))
+  let bossDir = 1;
+  const bossSpeed = 2.2;
+
+  const keys = new Set();
+  const bullets = new Set();
+  const enemyBullets = new Set();
+  let running = true;
+
+  function setPlayerPos() {
+    playerEl.style.left = `${px}px`;
+    playerEl.style.top = `${py}px`;
+  }
+  setPlayerPos();
+
+  function setBossPos() {
+    bossEl.style.left = `${bossX}px`;
+  }
+  setBossPos();
+
+  function clamp(val, min, max) { return Math.max(min, Math.min(max, val)); }
+
+  // Tir joueur: image missile
+  function shoot() {
+    if (!running) return;
+    const b = document.createElement('img');
+    b.className = 'bullet';
+    b.src = 'assets/image/missile.PNG';
+    b.alt = 'Missile';
+    const x = px; const y = py - 28;
+    b.style.left = `${x}px`; b.style.top = `${y}px`;
+    game.appendChild(b);
+    bullets.add({ el: b, x, y, vy: -8, w: 14, h: 28 });
+
+    // son (débloqué après première interaction utilisateur)
+    try { shootSound.currentTime = 0; shootSound.play(); } catch (e) {}
+  }
+
+  // Tir automatique toutes 0.5 s (PC + mobile)
+  let autoFireTimer = setInterval(() => { if (running) shoot(); }, 500);
+
+  // Boss: tire 3 missiles en éventail
+  function bossFire() {
+    if (!running) return;
+    const originX = bossX; // boss center
+    const originY = 76;
+
+    for (let i = -1; i <= 1; i++) {
+      const e = document.createElement('img');
+      e.className = 'boss-bullet';
+      e.src = 'assets/image/missileduboss.png';
+      e.alt = 'Missile boss';
+      e.style.left = `${originX}px`; e.style.top = `${originY}px`;
+      game.appendChild(e);
+      enemyBullets.add({ el: e, x: originX, y: originY, vx: i * 1.6, vy: 3.0, r: 14 });
+    }
+  }
+
+  // Loop principal
+  let lastTime = performance.now();
+  function loop(now) {
+    if (!running) return;
+    const dt = (now - lastTime) / 16.67; // ~60fps
+    lastTime = now;
+
+    // Déplacement joueur (horizontal)
+    let mx = 0;
+    if (keys.has('ArrowLeft') || keys.has('a') || keys.has('q')) mx -= 1;
+    if (keys.has('ArrowRight') || keys.has('d')) mx += 1;
+    px = clamp(px + mx * speed * dt, 24, width - 24);
+    setPlayerPos();
+
+    // Boss mouvement
+    bossX += bossDir * bossSpeed * dt * 3;
+    const bossLeftLimit = 40, bossRightLimit = width - 40;
+    if (bossX < bossLeftLimit) { bossX = bossLeftLimit; bossDir = 1; }
+    if (bossX > bossRightLimit) { bossX = bossRightLimit; bossDir = -1; }
+    setBossPos();
+
+    // Boss tir aléatoire
+    if (Math.random() < 0.03) bossFire();
+
+    // Update missiles joueur
+    bullets.forEach(b => {
+      b.y += b.vy * dt * 3;
+      b.el.style.top = `${b.y}px`;
+
+      // Collision simple rectangle vs boss image rect
+      const bx = bossEl.getBoundingClientRect();
+      const gx = game.getBoundingClientRect();
+      const bossRect = {
+        x: bx.left - gx.left + bossEl.width * 0.1,
+        y: bx.top - gx.top + bossEl.height * 0.2,
+        w: bossEl.width * 0.8,
+        h: bossEl.height * 0.6
+      };
+
+      const hit = !(
+        bossRect.x > b.x + b.w/2 ||
+        bossRect.x + bossRect.w < b.x - b.w/2 ||
+        bossRect.y > b.y + b.h/2 ||
+        bossRect.y + bossRect.h < b.y - b.h/2
+      );
+
+      if (hit) {
+        bossHp = Math.max(0, bossHp - 2);
+        bossHpBar.style.width = `${bossHp}%`;
+        score += 5;
+        scoreEl.textContent = score;
+        b.el.remove(); bullets.delete(b);
+        bossEl.animate(
+          [{ filter: 'brightness(1)' }, { filter: 'brightness(1.25)' }, { filter: 'brightness(1)' }],
+          { duration: 220 }
+        );
+      }
+
+      if (b.y < -40) { b.el.remove(); bullets.delete(b); }
+    });
+
+    // Update missiles boss
+    enemyBullets.forEach(e => {
+      e.x += e.vx * dt * 3;
+      e.y += e.vy * dt * 3;
+      e.el.style.left = `${e.x}px`;
+      e.el.style.top = `${e.y}px`;
+
+      // Collision approx joueur (cercle de rayon ~20)
+      const dist = Math.hypot(px - e.x, py - e.y);
+      if (dist < 22) {
+        e.el.remove(); enemyBullets.delete(e);
+        damage();
+      }
+
+      if (e.y > height + 40 || e.x < -40 || e.x > width + 40) {
+        e.el.remove(); enemyBullets.delete(e);
+      }
+    });
+
+    // Win condition
+    if (bossHp <= 0) {
+      win();
+      return;
+    }
+
+    requestAnimationFrame(loop);
+  }
+  requestAnimationFrame(loop);
+
+  function damage() {
+    if (!running) return;
+    hp = Math.max(0, hp - 1);
+    hpEl.textContent = hp;
+    game.animate([{ filter: 'brightness(1)' }, { filter: 'brightness(1.2)' }, { filter: 'brightness(1)' }], { duration: 220 });
+    if (hp <= 0) lose();
+  }
+
+  function win() {
+    running = false;
+    resultTitle.textContent = 'Boss vaincu !';
+    summary.textContent = `Score ${score} • Vies ${hp}`;
+    overlay.classList.add('show');
+    clearInterval(autoFireTimer);
+  }
+
+  function lose() {
+    running = false;
+    resultTitle.textContent = 'Game Over';
+    summary.textContent = `Score ${score} • Boss restant ${bossHp}%`;
+    overlay.classList.add('show');
+    clearInterval(autoFireTimer);
+  }
+
+  function reset() {
+    // clear bullets
+    bullets.forEach(b => b.el.remove()); bullets.clear();
+    enemyBullets.forEach(e => e.el.remove()); enemyBullets.clear();
+
+    // reset stats
+    hp = 3; bossHp = 100; score = 0;
+    hpEl.textContent = hp; scoreEl.textContent = score; bossHpBar.style.width = '100%';
+    px = width/2; py = height - 80; setPlayerPos();
+    bossX = width/2; bossDir = 1; setBossPos();
+
+    overlay.classList.remove('show');
+    running = true;
+    lastTime = performance.now();
+    autoFireTimer = setInterval(() => { if (running) shoot(); }, 500); // relance auto-fire
+    requestAnimationFrame(loop);
+  }
+
+  // Inputs clavier
+  window.addEventListener('keydown', (e) => { keys.add(e.key); });
+  window.addEventListener('keyup', (e) => { keys.delete(e.key); });
+
+  // Touch: déplacer le vaisseau là où on pose/glisse le doigt
+  function touchToGameX(touch) {
+    const r = game.getBoundingClientRect();
+    return clamp(touch.clientX - r.left, 24, width - 24);
+  }
+  game.addEventListener('touchstart', (e) => {
+    const t = e.touches[0];
+    px = touchToGameX(t); setPlayerPos();
+    // Débloque l'audio après première interaction
+    shootSound.play().catch(()=>{});
+  }, { passive: true });
+  game.addEventListener('touchmove', (e) => {
+    const t = e.touches[0];
+    px = touchToGameX(t); setPlayerPos();
+  }, { passive: true });
+
+  // Boutons mobiles gauche/droite (appui maintenu)
+  let leftHeld = false, rightHeld = false;
+  leftBtn.addEventListener('touchstart', () => { leftHeld = true; }, { passive: true });
+  leftBtn.addEventListener('touchend', () => { leftHeld = false; }, { passive: true });
+  rightBtn.addEventListener('touchstart', () => { rightHeld = true; }, { passive: true });
+  rightBtn.addEventListener('touchend', () => { rightHeld = false; }, { passive: true });
+
+  // Mouvement via boutons mobiles
+  setInterval(() => {
+    if (!running) return;
+    if (leftHeld) { px = clamp(px - speed * 2, 24, width - 24); setPlayerPos(); }
+    if (rightHeld) { px = clamp(px + speed * 2, 24, width - 24); setPlayerPos(); }
+  }, 30);
+
+  // Rejouer
+  retryBtn.addEventListener('click', reset);
+
+  // Responsive
+  const ro = new ResizeObserver(() => {
+    const r = game.getBoundingClientRect();
+    width = r.width; height = r.height;
+    px = clamp(px, 24, width - 24); setPlayerPos();
+    bossX = clamp(bossX, 40, width - 40); setBossPos();
+  });
+  ro.observe(game);
+})();
+</script>
+</body>
+</html>
